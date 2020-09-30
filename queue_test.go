@@ -12,11 +12,9 @@ import (
 func TestNewQueue(t *testing.T) {
 	qe := NewQueue(22)
 	q := qe.(*queue)
-	equalVal(t, 22, q.initCap, "length error")
-	equalVal(t, 22, q.realCap, "length error")
+	equalVal(t, 22, q.cap, "length error")
 	qe = NewQueue(0)
-	equalVal(t, -1, q.initCap, "length error")
-	equalVal(t, -1, q.realCap, "length error")
+	equalVal(t, 0, q.cap, "length error")
 }
 
 func TestQueue(t *testing.T) {
@@ -51,32 +49,41 @@ func TestQueue(t *testing.T) {
 
 	qe = NewQueue(0)
 	equalVal(t, 0, qe.Len(), "length error")
-	equalVal(t, -1, qe.Cap(), "cap error")
+	equalVal(t, 0, qe.Cap(), "cap error")
 	equalVal(t, true, qe.IsEmpty(), "isEmpty error")
 	equalVal(t, false, qe.IsFull(), "isFull error")
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 64; i++ {
 		err := qe.Push(i)
 		equalVal(t, nil, err, "push error")
 	}
 
-	equalVal(t, 5, qe.Len(), "length error")
-	equalVal(t, qe.(*queue).realCap, qe.Cap(), "cap error")
+	t.Log(qe.Cap())
+
+	equalVal(t, 64, qe.Len(), "length error")
+	equalVal(t, qe.(*queue).cap, qe.Cap(), "cap error")
 	equalVal(t, false, qe.IsEmpty(), "isEmpty error")
 	equalVal(t, false, qe.IsFull(), "isFull error")
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 64; i++ {
 		val, err := qe.Pull()
 		equalVal(t, nil, err, "pull error")
 		equalVal(t, i, val, "pull error")
 	}
+
+	t.Log(qe.Cap())
+
+	equalVal(t, 0, qe.Len(), "length error")
+	equalVal(t, qe.(*queue).cap, qe.Cap(), "cap error")
+	equalVal(t, true, qe.IsEmpty(), "isEmpty error")
+	equalVal(t, false, qe.IsFull(), "isFull error")
 
 	val, err = qe.Pull()
 	equalVal(t, ErrIsEmpty, err, "pull error")
 	equalVal(t, nil, val, "pull error")
 }
 
-func equalVal(t *testing.T, expect, val interface{}, errWithMsg string)  {
+func equalVal(t *testing.T, expect, val interface{}, errWithMsg string) {
 	if reflect.DeepEqual(expect, val) {
 		return
 	}

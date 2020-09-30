@@ -17,35 +17,39 @@ var (
 )
 
 type queue struct {
-	initCap int
-	realCap int
-	head    int
-	tail    int
-	isFull  bool
-	items   []interface{}
+	cap        int
+	head       int
+	tail       int
+	isAutoGrow bool
+	isFull     bool
+	items      []interface{}
 }
 
 // NewQueue 如果cap <= 0, 则是容量无限大的队列
 func NewQueue(cap int) Queue {
-	var sli []interface{}
+	return newQueue(cap)
+}
+
+func newQueue(cap int) *queue {
+	var (
+		sli        []interface{}
+		isAutoGrow bool
+	)
 	if cap <= 0 {
-		cap = -1
+		cap = 0
+		isAutoGrow = true
 	} else {
 		sli = make([]interface{}, cap)
 	}
 	return &queue{
-		initCap: cap,
-		realCap: cap,
-		items:   sli,
+		cap:        cap,
+		isAutoGrow: isAutoGrow,
+		items:      sli,
 	}
 }
 
-func (q *queue) isLimitSizeQueue() bool {
-	return q.initCap == -1
-}
-
 func (q *queue) Cap() int {
-	return q.realCap
+	return q.cap
 }
 
 func (q *queue) Len() int {
@@ -53,12 +57,12 @@ func (q *queue) Len() int {
 		return 0
 	}
 	if q.IsFull() {
-		return q.realCap
+		return q.cap
 	}
 	if q.tail > q.head {
 		return q.tail - q.head
 	}
-	return q.realCap - q.head + q.tail
+	return q.cap - q.head + q.tail
 }
 
 func (q *queue) IsEmpty() bool {
@@ -70,7 +74,7 @@ func (q *queue) IsFull() bool {
 }
 
 func (q *queue) Push(val interface{}) error {
-	if q.isLimitSizeQueue() {
+	if q.isAutoGrow {
 		return q.pushSlow(val)
 	}
 	if q.IsFull() {
@@ -78,7 +82,7 @@ func (q *queue) Push(val interface{}) error {
 	}
 	q.items[q.tail] = val
 	q.tail++
-	if q.tail == q.realCap {
+	if q.tail == q.cap {
 		q.tail = 0
 	}
 	if q.head == q.tail {
@@ -90,7 +94,7 @@ func (q *queue) Push(val interface{}) error {
 func (q *queue) pushSlow(val interface{}) error {
 	q.items = append(q.items, val)
 	q.tail++
-	q.realCap = cap(q.items)
+	q.cap = cap(q.items)
 	return nil
 }
 
@@ -98,13 +102,13 @@ func (q *queue) Pull() (interface{}, error) {
 	if q.IsEmpty() {
 		return nil, ErrIsEmpty
 	}
-	if q.isLimitSizeQueue() {
+	if q.isAutoGrow {
 		return q.pullSlow()
 	}
 	val := q.items[q.head]
 	q.items[q.head] = nil
 	q.head++
-	if q.head == q.realCap {
+	if q.head == q.cap {
 		q.head = 0
 	}
 	q.isFull = false
@@ -112,9 +116,55 @@ func (q *queue) Pull() (interface{}, error) {
 }
 
 func (q *queue) pullSlow() (interface{}, error) {
+	nc := q.reduceCap()
 	val := q.items[q.head]
 	q.items = q.items[1:]
 	q.tail--
-	q.realCap = cap(q.items)
+	q.cap = nc
+	return val, nil
+}
+
+func (q *queue) reduceCap() (newCap int) {
+	n, oc := q.Len(), q.Cap()
+	if oc > 31 && n <= (oc>>2) {
+		newCap = oc >> 1
+		nq := make([]interface{}, n, newCap)
+		copy(nq, q.items)
+		q.items = nq
+	} else {
+		newCap = oc
+	}
+	return newCap
+}
+
+func (q *queue) swap(i, j int) {
+	q.items[i], q.items[j] = q.items[j], q.items[i]
+}
+
+func (q *queue) pop() (interface{}, error) {
+	if q.IsEmpty() {
+		return nil, ErrIsEmpty
+	}
+	if q.isAutoGrow {
+		return q.popSlow()
+	}
+	idx := q.tail-1
+	val := q.items[idx]
+	q.items[idx] = nil
+	q.tail--
+	if q.tail <= 0 {
+		q.tail = 0
+	}
+	q.isFull = false
+	return val, nil
+}
+
+func (q *queue) popSlow() (interface{}, error) {
+	nc := q.reduceCap()
+	idx := q.tail-1
+	val := q.items[idx]
+	q.items = q.items[:idx]
+	q.tail--
+	q.cap = nc
 	return val, nil
 }
